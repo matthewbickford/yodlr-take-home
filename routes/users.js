@@ -4,6 +4,9 @@ var _ = require('lodash');
 var logger = require('../lib/logger');
 var log = logger();
 
+const { BadRequestError } = require("../expressError")
+const jsonschema = require("jsonschema");
+const singupSchema = require("../singup.json");
 var users = require('../init_data.json').data;
 var curId = _.size(users);
 
@@ -14,14 +17,23 @@ router.get('/', function(req, res) {
 
 /* Create a new user */
 router.post('/', function(req, res) {
-  var user = req.body;
-  user.id = curId++;
-  if (!user.state) {
-    user.state = 'pending';
+  try {
+    const validator = jsonschema.validate(req.body, singupSchema);
+    if (!validator.valid) {
+      const errs = validator.errors.map(e => e.stack);
+      throw new BadRequestError(errs);
+    } 
+    var user = req.body;
+    user.id = curId++;
+    if (!user.state) {
+      user.state = 'pending';
+    }
+    users[user.id] = user;
+    log.info('Created user', user);
+    res.json(user);
+  } catch (err) {
+    return next (err);
   }
-  users[user.id] = user;
-  log.info('Created user', user);
-  res.json(user);
 });
 
 /* Get a specific user by id */
